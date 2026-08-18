@@ -6,6 +6,8 @@ from jira_client import get_service_desk_id, get_queue_jql, fetch_issues
 from data_processor import build_jql, group_by_assignee, group_by_status, group_by_request_type, compute_kpis
 
 QUEUE_IDS = [37, 31]  # 37 = open/in-progress, 31 = closed/resolved
+BRAND_COLORS = ["#F2226E", "#F2911B", "#F26A1B", "#D92323", "#220126"]
+CHART_HEIGHT = 420
 
 st.set_page_config(page_title="Ad Ops - EA | Ticket Dashboard", layout="wide")
 
@@ -81,49 +83,41 @@ col1.metric("Total Tickets", kpis["total"])
 col2.metric("Done", kpis["done"])
 col3.metric("Completion Rate", f"{kpis['completion_rate']}%")
 
-st.divider()
+# --- Charts side by side ---
+col_left, col_right = st.columns(2)
 
-# --- Tickets by Assignee ---
-st.subheader("Tickets by Assignee")
-df_assignee = group_by_assignee(issues)
-fig_assignee = px.bar(
-    df_assignee,
-    x="count",
-    y="assignee",
-    orientation="h",
-    labels={"count": "Ticket Count", "assignee": "Assignee"},
-    color_discrete_sequence=["#4C78A8"],
-)
-fig_assignee.update_layout(yaxis={"categoryorder": "total ascending"}, margin={"l": 10})
-st.plotly_chart(fig_assignee, use_container_width=True)
+with col_left:
+    st.subheader("Status Breakdown by Assignee")
+    df_status = group_by_status(issues)
+    fig_status = px.bar(
+        df_status,
+        x="count",
+        y="assignee",
+        color="status",
+        orientation="h",
+        barmode="stack",
+        labels={"count": "Ticket Count", "assignee": "Assignee", "status": "Status"},
+        color_discrete_sequence=BRAND_COLORS,
+        height=CHART_HEIGHT,
+    )
+    fig_status.update_layout(
+        yaxis={"categoryorder": "total ascending"},
+        margin={"l": 10, "t": 10, "b": 10, "r": 10},
+        legend={"orientation": "h", "yanchor": "bottom", "y": -0.3},
+    )
+    st.plotly_chart(fig_status, use_container_width=True)
 
-st.divider()
-
-# --- Status Breakdown by Assignee ---
-st.subheader("Status Breakdown by Assignee")
-df_status = group_by_status(issues)
-fig_status = px.bar(
-    df_status,
-    x="count",
-    y="assignee",
-    color="status",
-    orientation="h",
-    barmode="stack",
-    labels={"count": "Ticket Count", "assignee": "Assignee", "status": "Status"},
-)
-fig_status.update_layout(yaxis={"categoryorder": "total ascending"}, margin={"l": 10})
-st.plotly_chart(fig_status, use_container_width=True)
-
-st.divider()
-
-# --- Request Type Distribution ---
-st.subheader("Request Type Distribution")
-df_type = group_by_request_type(issues)
-fig_type = px.pie(
-    df_type,
-    values="count",
-    names="request_type",
-    hole=0.4,
-    labels={"request_type": "Request Type", "count": "Count"},
-)
-st.plotly_chart(fig_type, use_container_width=True)
+with col_right:
+    st.subheader("Request Type Distribution")
+    df_type = group_by_request_type(issues)
+    fig_type = px.pie(
+        df_type,
+        values="count",
+        names="request_type",
+        hole=0.4,
+        labels={"request_type": "Request Type", "count": "Count"},
+        color_discrete_sequence=BRAND_COLORS,
+        height=CHART_HEIGHT,
+    )
+    fig_type.update_layout(margin={"l": 10, "t": 10, "b": 10, "r": 10})
+    st.plotly_chart(fig_type, use_container_width=True)
