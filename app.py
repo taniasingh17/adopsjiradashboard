@@ -46,6 +46,7 @@ if st.sidebar.button("Refresh"):
     st.cache_data.clear()
     st.rerun()
 
+
 # --- Main ---
 st.title("Ad Ops - EA | Ticket Dashboard")
 
@@ -76,6 +77,11 @@ except Exception as e:
 if not issues:
     st.info(f"No tickets found for {period_label.lower()} ({date_field}).")
     st.stop()
+
+with st.sidebar.expander("Debug: status names"):
+    from data_processor import _status_name as _sn
+    statuses = sorted({_sn(i) for i in issues})
+    st.write(statuses)
 
 # --- KPI Row ---
 kpis = compute_kpis(issues)

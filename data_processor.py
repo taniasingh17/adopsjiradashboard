@@ -64,8 +64,11 @@ def group_by_request_type(issues: list) -> pd.DataFrame:
     )
 
 
+_DONE_STATUSES = {"done", "resolved", "closed", "complete", "completed"}
+
+
 def compute_kpis(issues: list) -> dict:
     total = len(issues)
-    done = sum(1 for i in issues if _status_name(i).lower() == "done")
+    done = sum(1 for i in issues if _status_name(i).lower() in _DONE_STATUSES)
     rate = round(done / total * 100, 1) if total > 0 else 0.0
     return {"total": total, "done": done, "completion_rate": rate}

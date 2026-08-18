@@ -146,6 +146,16 @@ def test_compute_kpis_case_insensitive_done_match():
     assert kpis["done"] == 3
 
 
+def test_compute_kpis_counts_resolved_and_closed_as_done():
+    issues = [
+        make_issue(status="Resolved"),
+        make_issue(status="Closed"),
+        make_issue(status="Open"),
+    ]
+    kpis = compute_kpis(issues)
+    assert kpis["done"] == 2
+
+
 def test_compute_kpis_empty_issues_returns_zeros():
     kpis = compute_kpis([])
     assert kpis["total"] == 0
