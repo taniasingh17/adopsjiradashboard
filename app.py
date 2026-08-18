@@ -10,6 +10,7 @@ BRAND_COLORS = ["#F2226E", "#F2911B", "#F26A1B", "#D92323", "#220126"]
 CHART_HEIGHT = 420
 
 st.set_page_config(page_title="Ad Ops - EA | Ticket Dashboard", layout="wide")
+st.logo("logo.png")
 
 try:
     config = load_config()
