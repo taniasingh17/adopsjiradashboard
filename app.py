@@ -2,6 +2,7 @@ import datetime
 import requests
 import streamlit as st
 import plotly.express as px
+from streamlit_autorefresh import st_autorefresh
 from config import Config, load_config
 from jira_client import fetch_issues
 from data_processor import build_jql, build_jql_range, group_by_assignee, group_by_status, group_by_request_type, compute_kpis
@@ -13,6 +14,9 @@ CHART_HEIGHT = 380
 st.set_page_config(page_title="Ad Ops - EA | Ticket Dashboard", layout="wide")
 st.logo("logo.png")
 
+# Auto-refresh every 2 minutes; cache aligned to same interval
+st_autorefresh(interval=120_000, limit=None, key="autorefresh")
+
 try:
     config = load_config()
 except EnvironmentError as e:
@@ -20,14 +24,18 @@ except EnvironmentError as e:
     st.stop()
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=120)
 def _get_issues(jira_url: str, jira_email: str, jira_api_token: str, jql: str) -> list:
     cfg = Config(jira_url=jira_url, jira_email=jira_email, jira_api_token=jira_api_token)
     return fetch_issues(cfg, jql)
 
 
-# --- Title ---
-st.title("Ad Ops - EA | Ticket Dashboard")
+# --- Title with logo ---
+logo_col, title_col = st.columns([1, 7])
+with logo_col:
+    st.image("logo.png", use_container_width=True)
+with title_col:
+    st.title("Ad Ops - EA | Ticket Dashboard")
 
 # --- Filters ---
 period_map = {"Today": "today", "This Week": "week", "This Month": "month"}
@@ -42,7 +50,7 @@ with col_period:
 with col_mode:
     date_mode = st.radio("Date Mode", ["Created", "Updated"], horizontal=True)
 with col_refresh:
-    st.write("")  # vertical alignment nudge
+    st.write("")
     if st.button("Refresh", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
@@ -66,7 +74,6 @@ if period_label == "Custom Range":
 
 st.divider()
 
-# --- Guard: custom range not yet fully selected ---
 if period_label == "Custom Range" and not (custom_start and custom_end):
     st.info("Select a start and end date to load tickets.")
     st.stop()
@@ -144,12 +151,25 @@ with col_right:
     fig_type.update_layout(margin={"l": 10, "t": 10, "b": 10, "r": 10})
     st.plotly_chart(fig_type, use_container_width=True)
 
-# --- Debug (collapsed) ---
-with st.expander("Debug"):
-    from data_processor import _status_name as _sn
-    st.caption("JQL sent to Jira:")
-    st.code(jql, language="text")
-    st.caption(f"Tickets returned by API: {len(issues)}")
-    statuses = sorted({_sn(i) for i in issues})
-    st.caption("Status names in data:")
-    st.write(statuses)
+# --- Footer ---
+st.markdown(
+    """
+    <style>
+    .footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: #0e1117;
+        border-top: 1px solid #2d2d2d;
+        padding: 8px 24px;
+        text-align: center;
+        font-size: 13px;
+        color: #888;
+        z-index: 9999;
+    }
+    </style>
+    <div class="footer">Made with ❤️ TANIA SINGH &nbsp;·&nbsp; MiQ - AdOps team</div>
+    """,
+    unsafe_allow_html=True,
+)
