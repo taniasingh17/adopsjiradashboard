@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 from config import Config
-from jira_client import get_service_desk_id, get_queue_jql, fetch_issues
+from jira_client import get_service_desk_id, get_queue_jql, fetch_issues, _auth_header
 
 CONFIG = Config(
     jira_url="https://test.atlassian.net",
@@ -73,3 +73,13 @@ def test_fetch_issues_empty_result():
     with patch("jira_client.requests.get", return_value=response):
         result = fetch_issues(CONFIG, "project = TKTS AND created >= startOfDay()")
     assert result == []
+
+
+def test_auth_header_encodes_credentials_correctly():
+    import base64
+    headers = _auth_header(CONFIG)
+    assert headers["Accept"] == "application/json"
+    assert headers["Authorization"].startswith("Basic ")
+    encoded = headers["Authorization"][len("Basic "):]
+    decoded = base64.b64decode(encoded).decode()
+    assert decoded == "user@test.com:token123"
