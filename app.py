@@ -1,3 +1,4 @@
+import base64
 import datetime
 import requests
 import streamlit as st
@@ -12,7 +13,12 @@ BRAND_COLORS = ["#F2226E", "#F2911B", "#F26A1B", "#D92323", "#220126"]
 CHART_HEIGHT = 380
 
 st.set_page_config(page_title="Ad Ops - EA | Ticket Dashboard", layout="wide")
-st.logo("logo.png")
+
+
+@st.cache_data
+def _logo_b64() -> str:
+    with open("logo.png", "rb") as f:
+        return base64.b64encode(f.read()).decode()
 
 # Auto-refresh every 2 minutes; cache aligned to same interval
 st_autorefresh(interval=120_000, limit=None, key="autorefresh")
@@ -31,11 +37,16 @@ def _get_issues(jira_url: str, jira_email: str, jira_api_token: str, jql: str) -
 
 
 # --- Title with logo ---
-logo_col, title_col = st.columns([1, 7])
-with logo_col:
-    st.image("logo.png", use_container_width=True)
-with title_col:
-    st.title("Ad Ops - EA | Ticket Dashboard")
+st.markdown(
+    f"""<div style="display:flex;align-items:center;gap:12px;margin-bottom:0.5rem">
+    <img src="data:image/png;base64,{_logo_b64()}"
+         style="height:2.25rem;width:auto;object-fit:contain">
+    <h1 style="margin:0;padding:0;font-size:2.25rem;font-weight:700;line-height:1.2">
+        Ad Ops - EA | Ticket Dashboard
+    </h1>
+    </div>""",
+    unsafe_allow_html=True,
+)
 
 # --- Filters ---
 period_map = {"Today": "today", "This Week": "week", "This Month": "month"}
