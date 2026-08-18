@@ -46,7 +46,6 @@ def test_get_queue_jql_returns_jql_string():
 def test_fetch_issues_single_page():
     response = _mock_response({
         "issues": [{"id": "1", "fields": {"assignee": None}}],
-        "total": 1,
     })
     with patch("jira_client.requests.get", return_value=response):
         result = fetch_issues(CONFIG, "project = TKTS")
@@ -54,22 +53,24 @@ def test_fetch_issues_single_page():
     assert result[0]["id"] == "1"
 
 
-def test_fetch_issues_paginates_until_all_fetched():
+def test_fetch_issues_paginates_using_next_page_token():
     page1 = _mock_response({
         "issues": [{"id": str(i), "fields": {}} for i in range(100)],
-        "total": 150,
+        "nextPageToken": "token-abc",
     })
     page2 = _mock_response({
         "issues": [{"id": str(i), "fields": {}} for i in range(100, 150)],
-        "total": 150,
     })
-    with patch("jira_client.requests.get", side_effect=[page1, page2]):
+    with patch("jira_client.requests.get", side_effect=[page1, page2]) as mock_get:
         result = fetch_issues(CONFIG, "project = TKTS")
     assert len(result) == 150
+    # Second call must include the nextPageToken
+    second_call_params = mock_get.call_args_list[1][1]["params"]
+    assert second_call_params["nextPageToken"] == "token-abc"
 
 
 def test_fetch_issues_empty_result():
-    response = _mock_response({"issues": [], "total": 0})
+    response = _mock_response({"issues": []})
     with patch("jira_client.requests.get", return_value=response):
         result = fetch_issues(CONFIG, "project = TKTS AND created >= startOfDay()")
     assert result == []

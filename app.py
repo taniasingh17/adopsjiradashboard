@@ -86,9 +86,13 @@ if not issues:
     st.info(f"No tickets found for {period_label.lower()} ({date_field}).")
     st.stop()
 
-with st.sidebar.expander("Debug: status names"):
+with st.sidebar.expander("Debug"):
     from data_processor import _status_name as _sn
+    st.caption("JQL sent to Jira:")
+    st.code(jql, language="text")
+    st.caption(f"Tickets returned by API: {len(issues)}")
     statuses = sorted({_sn(i) for i in issues})
+    st.caption("Status names in data:")
     st.write(statuses)
 
 # --- KPI Row ---

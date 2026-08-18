@@ -36,20 +36,17 @@ def fetch_issues(config: Config, jql: str) -> list:
     headers = _auth_header(config)
     fields = "assignee,status,issuetype,created,updated"
     issues = []
-    start_at = 0
-    max_results = 100
+    next_page_token = None
     while True:
-        params = {
-            "jql": jql,
-            "startAt": start_at,
-            "maxResults": max_results,
-            "fields": fields,
-        }
+        params = {"jql": jql, "maxResults": 100, "fields": fields}
+        if next_page_token:
+            params["nextPageToken"] = next_page_token
         response = requests.get(url, headers=headers, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
-        issues.extend(data.get("issues", []))
-        if start_at + max_results >= data.get("total", 0):
+        batch = data.get("issues", [])
+        issues.extend(batch)
+        next_page_token = data.get("nextPageToken")
+        if not next_page_token:
             break
-        start_at += max_results
     return issues
