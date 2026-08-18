@@ -1,5 +1,6 @@
 import base64
 import datetime
+from pathlib import Path
 import requests
 import streamlit as st
 import plotly.express as px
@@ -11,14 +12,14 @@ from data_processor import build_jql, build_jql_range, group_by_assignee, group_
 BASE_JQL = "project = TKTS"
 BRAND_COLORS = ["#F2226E", "#F2911B", "#F26A1B", "#D92323", "#220126"]
 CHART_HEIGHT = 380
+_LOGO_PATH = Path(__file__).parent / "logo.png"
 
 st.set_page_config(page_title="Ad Ops - EA | Ticket Dashboard", layout="wide")
 
 
 @st.cache_data
 def _logo_b64() -> str:
-    with open("logo.png", "rb") as f:
-        return base64.b64encode(f.read()).decode()
+    return base64.b64encode(_LOGO_PATH.read_bytes()).decode()
 
 # Auto-refresh every 2 minutes; cache aligned to same interval
 st_autorefresh(interval=120_000, limit=None, key="autorefresh")
