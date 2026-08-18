@@ -1,6 +1,7 @@
 import pytest
 from data_processor import (
     build_jql,
+    build_jql_range,
     group_by_assignee,
     group_by_status,
     group_by_request_type,
@@ -46,6 +47,17 @@ def test_build_jql_order_by_case_insensitive():
     base = "project = TKTS order by created DESC"
     result = build_jql(base, "updated", "week")
     assert result == "project = TKTS AND updated >= startOfWeek() order by created DESC"
+
+
+def test_build_jql_range_no_order_by():
+    result = build_jql_range("project = TKTS", "created", "2024-01-01", "2024-01-31")
+    assert result == 'project = TKTS AND created >= "2024-01-01" AND created <= "2024-01-31"'
+
+
+def test_build_jql_range_with_order_by():
+    base = "project = TKTS AND resolved >= -1w ORDER BY resolved DESC"
+    result = build_jql_range(base, "created", "2024-01-01", "2024-01-31")
+    assert result == 'project = TKTS AND resolved >= -1w AND created >= "2024-01-01" AND created <= "2024-01-31" ORDER BY resolved DESC'
 
 
 # --- group_by_assignee ---

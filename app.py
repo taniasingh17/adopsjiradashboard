@@ -3,7 +3,7 @@ import streamlit as st
 import plotly.express as px
 from config import Config, load_config
 from jira_client import get_service_desk_id, get_queue_jql, fetch_issues
-from data_processor import build_jql, group_by_assignee, group_by_status, group_by_request_type, compute_kpis
+from data_processor import build_jql, build_jql_range, group_by_assignee, group_by_status, group_by_request_type, compute_kpis
 
 QUEUE_IDS = [37, 31]  # 37 = open/in-progress, 31 = closed/resolved
 BRAND_COLORS = ["#F2226E", "#F2911B", "#F26A1B", "#D92323", "#220126"]
@@ -35,9 +35,22 @@ def _get_issues(jira_url: str, jira_email: str, jira_api_token: str, jql: str) -
 # --- Sidebar ---
 st.sidebar.title("Filters")
 
-period_label = st.sidebar.radio("Time Period", ["Today", "This Week", "This Month"])
+period_label = st.sidebar.radio("Time Period", ["Today", "This Week", "This Month", "Custom Range"])
 period_map = {"Today": "today", "This Week": "week", "This Month": "month"}
-period = period_map[period_label]
+
+custom_start = custom_end = None
+if period_label == "Custom Range":
+    import datetime
+    today = datetime.date.today()
+    date_range = st.sidebar.date_input(
+        "Select date range",
+        value=(today - datetime.timedelta(days=7), today),
+        max_value=today,
+    )
+    if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
+        custom_start, custom_end = date_range
+    else:
+        st.sidebar.warning("Please select a start and end date.")
 
 date_mode = st.sidebar.radio("Date Mode", ["Created", "Updated"])
 date_field = date_mode.lower()
@@ -50,11 +63,18 @@ if st.sidebar.button("Refresh"):
 # --- Main ---
 st.title("Ad Ops - EA | Ticket Dashboard")
 
+if period_label == "Custom Range" and not (custom_start and custom_end):
+    st.info("Select a start and end date to load tickets.")
+    st.stop()
+
 try:
     all_issues = {}
     for qid in QUEUE_IDS:
         base_jql = _get_base_jql(config.jira_url, config.jira_email, config.jira_api_token, qid)
-        jql = build_jql(base_jql, date_field, period)
+        if period_label == "Custom Range":
+            jql = build_jql_range(base_jql, date_field, custom_start, custom_end)
+        else:
+            jql = build_jql(base_jql, date_field, period_map[period_label])
         for issue in _get_issues(config.jira_url, config.jira_email, config.jira_api_token, jql):
             all_issues[issue["id"]] = issue
     issues = list(all_issues.values())

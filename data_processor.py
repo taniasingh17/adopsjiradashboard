@@ -64,6 +64,14 @@ def group_by_request_type(issues: list) -> pd.DataFrame:
     )
 
 
+def build_jql_range(base_jql: str, date_field: str, start_date, end_date) -> str:
+    clause = f'{date_field} >= "{start_date}" AND {date_field} <= "{end_date}"'
+    order_idx = base_jql.upper().find(" ORDER BY ")
+    if order_idx != -1:
+        return f"{base_jql[:order_idx]} AND {clause}{base_jql[order_idx:]}"
+    return f"{base_jql} AND {clause}"
+
+
 _DONE_STATUSES = {"done", "resolved", "closed", "complete", "completed"}
 
 
