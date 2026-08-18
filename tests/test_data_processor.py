@@ -36,6 +36,18 @@ def test_build_jql_month_created():
     assert result == "project = TKTS AND created >= startOfMonth()"
 
 
+def test_build_jql_inserts_before_order_by():
+    base = "project = TKTS AND resolved >= -1w ORDER BY resolved DESC"
+    result = build_jql(base, "created", "today")
+    assert result == "project = TKTS AND resolved >= -1w AND created >= startOfDay() ORDER BY resolved DESC"
+
+
+def test_build_jql_order_by_case_insensitive():
+    base = "project = TKTS order by created DESC"
+    result = build_jql(base, "updated", "week")
+    assert result == "project = TKTS AND updated >= startOfWeek() order by created DESC"
+
+
 # --- group_by_assignee ---
 
 def test_group_by_assignee_counts_correctly():

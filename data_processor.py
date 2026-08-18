@@ -8,7 +8,11 @@ _PERIOD_JQL = {
 
 
 def build_jql(base_jql: str, date_field: str, period: str) -> str:
-    return f"{base_jql} AND {date_field} >= {_PERIOD_JQL[period]}"
+    time_clause = f"{date_field} >= {_PERIOD_JQL[period]}"
+    order_idx = base_jql.upper().find(" ORDER BY ")
+    if order_idx != -1:
+        return f"{base_jql[:order_idx]} AND {time_clause}{base_jql[order_idx:]}"
+    return f"{base_jql} AND {time_clause}"
 
 
 def _assignee_name(issue: dict) -> str:
