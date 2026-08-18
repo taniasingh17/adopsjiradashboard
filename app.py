@@ -2,10 +2,10 @@ import requests
 import streamlit as st
 import plotly.express as px
 from config import Config, load_config
-from jira_client import get_service_desk_id, get_queue_jql, fetch_issues
+from jira_client import fetch_issues
 from data_processor import build_jql, build_jql_range, group_by_assignee, group_by_status, group_by_request_type, compute_kpis
 
-QUEUE_IDS = [37, 31]  # 37 = open/in-progress, 31 = closed/resolved
+BASE_JQL = "project = TKTS"
 BRAND_COLORS = ["#F2226E", "#F2911B", "#F26A1B", "#D92323", "#220126"]
 CHART_HEIGHT = 420
 
@@ -17,13 +17,6 @@ try:
 except EnvironmentError as e:
     st.error(str(e))
     st.stop()
-
-
-@st.cache_data(ttl=3600)
-def _get_base_jql(jira_url: str, jira_email: str, jira_api_token: str, queue_id: int) -> str:
-    cfg = Config(jira_url=jira_url, jira_email=jira_email, jira_api_token=jira_api_token)
-    sd_id = get_service_desk_id(cfg)
-    return get_queue_jql(cfg, sd_id, queue_id)
 
 
 @st.cache_data(ttl=300)
@@ -68,16 +61,11 @@ if period_label == "Custom Range" and not (custom_start and custom_end):
     st.stop()
 
 try:
-    all_issues = {}
-    for qid in QUEUE_IDS:
-        base_jql = _get_base_jql(config.jira_url, config.jira_email, config.jira_api_token, qid)
-        if period_label == "Custom Range":
-            jql = build_jql_range(base_jql, date_field, custom_start, custom_end)
-        else:
-            jql = build_jql(base_jql, date_field, period_map[period_label])
-        for issue in _get_issues(config.jira_url, config.jira_email, config.jira_api_token, jql):
-            all_issues[issue["id"]] = issue
-    issues = list(all_issues.values())
+    if period_label == "Custom Range":
+        jql = build_jql_range(BASE_JQL, date_field, custom_start, custom_end)
+    else:
+        jql = build_jql(BASE_JQL, date_field, period_map[period_label])
+    issues = _get_issues(config.jira_url, config.jira_email, config.jira_api_token, jql)
 except requests.exceptions.Timeout:
     st.error("Request timed out — Jira may be unreachable. Try again in a moment.")
     st.stop()
@@ -86,7 +74,7 @@ except requests.exceptions.HTTPError as e:
     if status in (401, 403):
         st.error("Authentication failed — check your JIRA_EMAIL and JIRA_API_TOKEN.")
     elif status == 404:
-        st.error("Queue or project not found — verify JIRA_URL and queue ID 37 exist.")
+        st.error("Project not found — verify JIRA_URL and that project TKTS exists.")
     else:
         st.error(f"Jira API error ({status}): {e}")
     st.stop()
