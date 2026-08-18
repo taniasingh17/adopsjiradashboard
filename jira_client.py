@@ -32,7 +32,7 @@ def get_queue_jql(config: Config, service_desk_id: str, queue_id: int = QUEUE_ID
 
 
 def fetch_issues(config: Config, jql: str) -> list:
-    url = f"{config.jira_url}/rest/api/3/search"
+    url = f"{config.jira_url}/rest/api/3/search/jql"
     headers = _auth_header(config)
     fields = "assignee,status,issuetype,created,updated"
     issues = []
