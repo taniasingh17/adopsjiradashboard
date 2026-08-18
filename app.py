@@ -1,3 +1,4 @@
+import datetime
 import requests
 import streamlit as st
 import plotly.express as px
@@ -7,7 +8,7 @@ from data_processor import build_jql, build_jql_range, group_by_assignee, group_
 
 BASE_JQL = "project = TKTS"
 BRAND_COLORS = ["#F2226E", "#F2911B", "#F26A1B", "#D92323", "#220126"]
-CHART_HEIGHT = 420
+CHART_HEIGHT = 380
 
 st.set_page_config(page_title="Ad Ops - EA | Ticket Dashboard", layout="wide")
 st.logo("logo.png")
@@ -25,41 +26,52 @@ def _get_issues(jira_url: str, jira_email: str, jira_api_token: str, jql: str) -
     return fetch_issues(cfg, jql)
 
 
-# --- Sidebar ---
-st.sidebar.title("Filters")
+# --- Title ---
+st.title("Ad Ops - EA | Ticket Dashboard")
 
-period_label = st.sidebar.radio("Time Period", ["Today", "This Week", "This Month", "Custom Range"])
+# --- Filters ---
 period_map = {"Today": "today", "This Week": "week", "This Month": "month"}
+
+col_period, col_mode, col_refresh = st.columns([4, 2, 1])
+with col_period:
+    period_label = st.radio(
+        "Time Period",
+        ["Today", "This Week", "This Month", "Custom Range"],
+        horizontal=True,
+    )
+with col_mode:
+    date_mode = st.radio("Date Mode", ["Created", "Updated"], horizontal=True)
+with col_refresh:
+    st.write("")  # vertical alignment nudge
+    if st.button("Refresh", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+
+date_field = date_mode.lower()
 
 custom_start = custom_end = None
 if period_label == "Custom Range":
-    import datetime
     today = datetime.date.today()
-    date_range = st.sidebar.date_input(
-        "Select date range",
-        value=(today - datetime.timedelta(days=7), today),
-        max_value=today,
-    )
+    col_dr, _ = st.columns([3, 5])
+    with col_dr:
+        date_range = st.date_input(
+            "Select date range",
+            value=(today - datetime.timedelta(days=7), today),
+            max_value=today,
+        )
     if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
         custom_start, custom_end = date_range
     else:
-        st.sidebar.warning("Please select a start and end date.")
+        st.warning("Please select a start and end date.")
 
-date_mode = st.sidebar.radio("Date Mode", ["Created", "Updated"])
-date_field = date_mode.lower()
+st.divider()
 
-if st.sidebar.button("Refresh"):
-    st.cache_data.clear()
-    st.rerun()
-
-
-# --- Main ---
-st.title("Ad Ops - EA | Ticket Dashboard")
-
+# --- Guard: custom range not yet fully selected ---
 if period_label == "Custom Range" and not (custom_start and custom_end):
     st.info("Select a start and end date to load tickets.")
     st.stop()
 
+# --- Fetch ---
 try:
     if period_label == "Custom Range":
         jql = build_jql_range(BASE_JQL, date_field, custom_start, custom_end)
@@ -85,15 +97,6 @@ except Exception as e:
 if not issues:
     st.info(f"No tickets found for {period_label.lower()} ({date_field}).")
     st.stop()
-
-with st.sidebar.expander("Debug"):
-    from data_processor import _status_name as _sn
-    st.caption("JQL sent to Jira:")
-    st.code(jql, language="text")
-    st.caption(f"Tickets returned by API: {len(issues)}")
-    statuses = sorted({_sn(i) for i in issues})
-    st.caption("Status names in data:")
-    st.write(statuses)
 
 # --- KPI Row ---
 kpis = compute_kpis(issues)
@@ -140,3 +143,13 @@ with col_right:
     )
     fig_type.update_layout(margin={"l": 10, "t": 10, "b": 10, "r": 10})
     st.plotly_chart(fig_type, use_container_width=True)
+
+# --- Debug (collapsed) ---
+with st.expander("Debug"):
+    from data_processor import _status_name as _sn
+    st.caption("JQL sent to Jira:")
+    st.code(jql, language="text")
+    st.caption(f"Tickets returned by API: {len(issues)}")
+    statuses = sorted({_sn(i) for i in issues})
+    st.caption("Status names in data:")
+    st.write(statuses)
