@@ -5,7 +5,7 @@ from config import Config, load_config
 from jira_client import get_service_desk_id, get_queue_jql, fetch_issues
 from data_processor import build_jql, group_by_assignee, group_by_status, group_by_request_type, compute_kpis
 
-QUEUE_ID = 37
+QUEUE_IDS = [37, 31]  # 37 = open/in-progress, 31 = closed/resolved
 
 st.set_page_config(page_title="Ad Ops - EA | Ticket Dashboard", layout="wide")
 
@@ -17,10 +17,10 @@ except EnvironmentError as e:
 
 
 @st.cache_data(ttl=3600)
-def _get_base_jql(jira_url: str, jira_email: str, jira_api_token: str) -> str:
+def _get_base_jql(jira_url: str, jira_email: str, jira_api_token: str, queue_id: int) -> str:
     cfg = Config(jira_url=jira_url, jira_email=jira_email, jira_api_token=jira_api_token)
     sd_id = get_service_desk_id(cfg)
-    return get_queue_jql(cfg, sd_id, QUEUE_ID)
+    return get_queue_jql(cfg, sd_id, queue_id)
 
 
 @st.cache_data(ttl=300)
@@ -47,9 +47,13 @@ if st.sidebar.button("Refresh"):
 st.title("Ad Ops - EA | Ticket Dashboard")
 
 try:
-    base_jql = _get_base_jql(config.jira_url, config.jira_email, config.jira_api_token)
-    jql = build_jql(base_jql, date_field, period)
-    issues = _get_issues(config.jira_url, config.jira_email, config.jira_api_token, jql)
+    all_issues = {}
+    for qid in QUEUE_IDS:
+        base_jql = _get_base_jql(config.jira_url, config.jira_email, config.jira_api_token, qid)
+        jql = build_jql(base_jql, date_field, period)
+        for issue in _get_issues(config.jira_url, config.jira_email, config.jira_api_token, jql):
+            all_issues[issue["id"]] = issue
+    issues = list(all_issues.values())
 except requests.exceptions.Timeout:
     st.error("Request timed out — Jira may be unreachable. Try again in a moment.")
     st.stop()
