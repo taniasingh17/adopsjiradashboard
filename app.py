@@ -20,6 +20,17 @@ st.set_page_config(page_title="Ad Ops - EA | Ticket Dashboard", layout="wide")
 st.markdown(
     """<style>
     .block-container { padding-top: 0.75rem; padding-bottom: 0rem; }
+    .a-card { position: relative; display: inline-block; cursor: default; }
+    .a-tip {
+        display: none; position: absolute; top: 110%; left: 50%;
+        transform: translateX(-50%);
+        background: #1e1e2e; border: 1px solid #444; border-radius: 8px;
+        padding: 8px 14px; z-index: 9999; white-space: nowrap;
+        font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    }
+    .a-card:hover .a-tip { display: block; }
+    .a-tip td { padding: 2px 4px; }
+    .a-tip td:last-child { text-align: right; padding-left: 14px; font-weight: 600; }
     </style>""",
     unsafe_allow_html=True,
 )
@@ -133,6 +144,18 @@ if not issues:
 kpis = compute_kpis(issues)
 df_assignee = group_by_assignee(issues)
 
+# Build per-assignee type breakdown for hover tooltips
+_type_by_assignee: dict = {}
+for _issue in issues:
+    _fields = _issue.get("fields", {})
+    _asgn = _fields.get("assignee")
+    _orig = _asgn["displayName"] if _asgn else "Ad Ops - EA"
+    _raw_type = _fields.get("issuetype", {}).get("name", "Unknown")
+    _parts = _raw_type.split(" - ", 1)
+    _tname = _parts[1].strip() if len(_parts) == 2 else _raw_type
+    _type_by_assignee.setdefault(_orig, {})
+    _type_by_assignee[_orig][_tname] = _type_by_assignee[_orig].get(_tname, 0) + 1
+
 def _display_name(name: str) -> str:
     return "Unassigned" if name == "Ad Ops - EA" else name.split()[0]
 
@@ -156,13 +179,25 @@ with kpi_left:
 with kpi_right:
     st.caption("Tickets by Assignee")
     assignee_items = [
-        (_display_name(row["assignee"]), int(row["count"]))
+        (_display_name(row["assignee"]), int(row["count"]), row["assignee"])
         for _, row in df_assignee.iterrows()
     ]
     if assignee_items:
         a_cols = st.columns(len(assignee_items))
-        for col, (name, cnt) in zip(a_cols, assignee_items):
-            col.metric(name, cnt)
+        for col, (name, cnt, orig) in zip(a_cols, assignee_items):
+            breakdown = _type_by_assignee.get(orig, {})
+            rows_html = "".join(
+                f"<tr><td>{t}</td><td>{c}</td></tr>"
+                for t, c in sorted(breakdown.items(), key=lambda x: -x[1])
+            )
+            col.markdown(
+                f'<div class="a-card">'
+                f'<div style="font-size:0.85rem;color:rgba(250,250,250,0.6);margin-bottom:0.15rem">{name}</div>'
+                f'<div style="font-size:1.6rem;font-weight:700">{cnt}</div>'
+                f'<div class="a-tip"><table>{rows_html}</table></div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
 
 # --- Charts side by side ---
 col_left, col_right = st.columns(2)
