@@ -119,10 +119,29 @@ if not issues:
 
 # --- KPI Row ---
 kpis = compute_kpis(issues)
-col1, col2, col3 = st.columns(3)
-col1.metric("Total Tickets", kpis["total"])
-col2.metric("Done", kpis["done"])
-col3.metric("Completion Rate", f"{kpis['completion_rate']}%")
+df_assignee = group_by_assignee(issues)
+
+def _display_name(name: str) -> str:
+    return "Unassigned" if name == "Ad Ops - EA" else name.split()[0]
+
+kpi_left, kpi_right = st.columns([1, 2])
+
+with kpi_left:
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total Tickets", kpis["total"])
+    c2.metric("Done", kpis["done"])
+    c3.metric("Completion Rate", f"{kpis['completion_rate']}%")
+
+with kpi_right:
+    st.caption("Tickets by Assignee")
+    assignee_items = [
+        (_display_name(row["assignee"]), int(row["count"]))
+        for _, row in df_assignee.iterrows()
+    ]
+    if assignee_items:
+        a_cols = st.columns(len(assignee_items))
+        for col, (name, cnt) in zip(a_cols, assignee_items):
+            col.metric(name, cnt)
 
 # --- Charts side by side ---
 col_left, col_right = st.columns(2)
@@ -137,10 +156,12 @@ with col_left:
         color="status",
         orientation="h",
         barmode="stack",
+        text="count",
         labels={"count": "Ticket Count", "assignee": "Assignee", "status": "Status"},
         color_discrete_sequence=BRAND_COLORS,
         height=CHART_HEIGHT,
     )
+    fig_status.update_traces(textposition="inside", textfont_size=11, cliponaxis=False)
     fig_status.update_layout(
         yaxis={"categoryorder": "total ascending"},
         margin={"l": 10, "t": 10, "b": 10, "r": 10},
@@ -151,6 +172,7 @@ with col_left:
 with col_right:
     st.subheader("Request Type Distribution")
     df_type = group_by_request_type(issues)
+    df_type = df_type[df_type["request_type"].str.lower() != "china-outbound"]
     fig_type = px.pie(
         df_type,
         values="count",
@@ -160,6 +182,7 @@ with col_right:
         color_discrete_sequence=BRAND_COLORS,
         height=CHART_HEIGHT,
     )
+    fig_type.update_traces(textinfo="value", textposition="inside")
     fig_type.update_layout(margin={"l": 10, "t": 10, "b": 10, "r": 10})
     st.plotly_chart(fig_type, use_container_width=True)
 
