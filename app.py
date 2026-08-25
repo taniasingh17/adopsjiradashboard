@@ -172,7 +172,7 @@ with col_left:
 with col_right:
     st.subheader("Request Type Distribution")
     df_type = group_by_request_type(issues)
-    df_type = df_type[df_type["request_type"].str.lower() != "china-outbound"]
+    df_type = df_type[df_type["request_type"] != "China - Outbound"]
     fig_type = px.pie(
         df_type,
         values="count",
