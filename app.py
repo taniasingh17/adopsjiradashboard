@@ -4,17 +4,25 @@ from pathlib import Path
 import requests
 import streamlit as st
 import plotly.express as px
+import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
 from config import Config, load_config
 from jira_client import fetch_issues
 from data_processor import build_jql, build_jql_range, group_by_assignee, group_by_status, group_by_request_type, compute_kpis
 
 BASE_JQL = "project = TKTS"
-BRAND_COLORS = ["#F2226E", "#F2911B", "#F26A1B", "#D92323", "#220126"]
+BRAND_COLORS = ["#F2226E", "#F2911B", "#F26A1B", "#D92323", "#9B4DB5"]
 CHART_HEIGHT = 380
 _LOGO_PATH = Path(__file__).parent / "logo.png"
 
 st.set_page_config(page_title="Ad Ops - EA | Ticket Dashboard", layout="wide")
+
+st.markdown(
+    """<style>
+    .block-container { padding-top: 0.75rem; padding-bottom: 0rem; }
+    </style>""",
+    unsafe_allow_html=True,
+)
 
 
 @st.cache_data
@@ -62,7 +70,7 @@ with col_period:
 with col_mode:
     date_mode = st.radio("Date Mode", ["Created", "Updated"], horizontal=True)
 with col_refresh:
-    st.write("")
+    st.markdown("<div style='margin-top:1.65rem'></div>", unsafe_allow_html=True)
     if st.button("Refresh", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
@@ -97,6 +105,10 @@ try:
     else:
         jql = build_jql(BASE_JQL, date_field, period_map[period_label])
     issues = _get_issues(config.jira_url, config.jira_email, config.jira_api_token, jql)
+    issues = [
+        i for i in issues
+        if i.get("fields", {}).get("issuetype", {}).get("name") != "China - Outbound"
+    ]
 except requests.exceptions.Timeout:
     st.error("Request timed out — Jira may be unreachable. Try again in a moment.")
     st.stop()
@@ -119,10 +131,38 @@ if not issues:
 
 # --- KPI Row ---
 kpis = compute_kpis(issues)
-col1, col2, col3 = st.columns(3)
-col1.metric("Total Tickets", kpis["total"])
-col2.metric("Done", kpis["done"])
-col3.metric("Completion Rate", f"{kpis['completion_rate']}%")
+df_assignee = group_by_assignee(issues)
+
+def _display_name(name: str) -> str:
+    return "Unassigned" if name == "Ad Ops - EA" else name.split()[0]
+
+kpi_left, kpi_right = st.columns([1, 2])
+
+with kpi_left:
+    c1, c2, c3 = st.columns(3)
+    for col, label, value in [
+        (c1, "Total Tickets", kpis["total"]),
+        (c2, "Done", kpis["done"]),
+        (c3, "Completion Rate", f"{kpis['completion_rate']}%"),
+    ]:
+        col.markdown(
+            f'<div style="padding: 1.1rem 0 1rem 0">'
+            f'<div style="font-size:0.95rem;color:rgba(250,250,250,0.6);margin-bottom:0.3rem">{label}</div>'
+            f'<div style="font-size:2.8rem;font-weight:700;line-height:1.1">{value}</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+with kpi_right:
+    st.caption("Tickets by Assignee")
+    assignee_items = [
+        (_display_name(row["assignee"]), int(row["count"]))
+        for _, row in df_assignee.iterrows()
+    ]
+    if assignee_items:
+        a_cols = st.columns(len(assignee_items))
+        for col, (name, cnt) in zip(a_cols, assignee_items):
+            col.metric(name, cnt)
 
 # --- Charts side by side ---
 col_left, col_right = st.columns(2)
@@ -137,31 +177,90 @@ with col_left:
         color="status",
         orientation="h",
         barmode="stack",
+        text="count",
         labels={"count": "Ticket Count", "assignee": "Assignee", "status": "Status"},
         color_discrete_sequence=BRAND_COLORS,
         height=CHART_HEIGHT,
+    )
+    fig_status.update_traces(
+        textposition="inside",
+        textfont={"size": 14, "weight": "bold", "shadow": "auto"},
+        cliponaxis=False,
     )
     fig_status.update_layout(
         yaxis={"categoryorder": "total ascending"},
         margin={"l": 10, "t": 10, "b": 10, "r": 10},
         legend={"orientation": "h", "yanchor": "bottom", "y": -0.3},
+        font={"size": 14},
     )
     st.plotly_chart(fig_status, use_container_width=True)
 
 with col_right:
-    st.subheader("Request Type Distribution")
-    df_type = group_by_request_type(issues)
-    fig_type = px.pie(
-        df_type,
-        values="count",
-        names="request_type",
-        hole=0.4,
-        labels={"request_type": "Request Type", "count": "Count"},
-        color_discrete_sequence=BRAND_COLORS,
-        height=CHART_HEIGHT,
-    )
-    fig_type.update_layout(margin={"l": 10, "t": 10, "b": 10, "r": 10})
-    st.plotly_chart(fig_type, use_container_width=True)
+    r_title, r_toggle = st.columns([3, 1])
+    r_title.subheader("Tickets by Market & Type")
+    view = r_toggle.radio("View as", ["Sankey", "Table"], horizontal=True, label_visibility="collapsed")
+
+    df_type_raw = group_by_request_type(issues)
+
+    # Parse "Market - Type" format
+    parsed = []
+    for _, row in df_type_raw.iterrows():
+        parts = str(row["request_type"]).split(" - ", 1)
+        market = parts[0].strip() if len(parts) == 2 else "Other"
+        rtype  = parts[1].strip() if len(parts) == 2 else parts[0].strip()
+        parsed.append((market, rtype, int(row["count"])))
+
+    unique_markets = list(dict.fromkeys(m for m, _, _ in parsed))
+
+    if view == "Sankey":
+        unique_types = list(dict.fromkeys(t for _, t, _ in parsed))
+        n_m = len(unique_markets)
+        market_idx = {m: i       for i, m in enumerate(unique_markets)}
+        type_idx   = {t: n_m + i for i, t in enumerate(unique_types)}
+
+        market_totals = {m: sum(v for mm, _, v in parsed if mm == m) for m in unique_markets}
+        type_totals   = {t: sum(v for _, tt, v in parsed if tt == t) for t in unique_types}
+        all_labels = (
+            [f"{m}  ({market_totals[m]})" for m in unique_markets] +
+            [f"{t}  ({type_totals[t]})"   for t in unique_types]
+        )
+
+        market_colors = [BRAND_COLORS[i % len(BRAND_COLORS)] for i in range(n_m)]
+        node_colors   = market_colors + ["#4a4a4a"] * len(unique_types)
+
+        def _rgba(hex_color, alpha=0.4):
+            r, g, b = int(hex_color[1:3], 16), int(hex_color[3:5], 16), int(hex_color[5:7], 16)
+            return f"rgba({r},{g},{b},{alpha})"
+
+        sources     = [market_idx[m]                            for m, _, _ in parsed]
+        targets     = [type_idx[t]                              for _, t, _ in parsed]
+        vals        = [v                                        for _, _, v in parsed]
+        link_colors = [_rgba(market_colors[market_idx[m]])      for m, _, _ in parsed]
+
+        fig_sankey = go.Figure(go.Sankey(
+            arrangement="snap",
+            node=dict(label=all_labels, color=node_colors, pad=15, thickness=20),
+            link=dict(source=sources, target=targets, value=vals, color=link_colors),
+        ))
+        fig_sankey.update_layout(
+            height=CHART_HEIGHT,
+            margin={"l": 10, "t": 10, "b": 10, "r": 10},
+            font={"size": 14},
+        )
+        st.plotly_chart(fig_sankey, use_container_width=True)
+
+    else:
+        table_rows = sorted(parsed, key=lambda x: (-x[2], x[0]))
+        st.dataframe(
+            {
+                "Market": [m for m, _, _ in table_rows],
+                "Type":   [t for _, t, _ in table_rows],
+                "Count":  [v for _, _, v in table_rows],
+            },
+            use_container_width=True,
+            hide_index=True,
+            height=CHART_HEIGHT,
+        )
 
 # --- Footer ---
 st.markdown(
