@@ -209,9 +209,25 @@ with col_right:
     vals        = [v                                        for _, _, v in parsed]
     link_colors = [_rgba(market_colors[market_idx[m]])      for m, _, _ in parsed]
 
+    n_t = len(unique_types)
+
+    # Fixed layout: markets on far left, type bars at x=0.45 so labels fill right half
+    def _even_y(n):
+        return [(i + 0.5) / n for i in range(n)]
+
+    node_x = [0.01] * n_m + [0.45] * n_t
+    node_y = _even_y(n_m) + _even_y(n_t)
+
     fig_sankey = go.Figure(go.Sankey(
-        arrangement="snap",
-        node=dict(label=all_labels, color=node_colors, pad=12, thickness=18),
+        arrangement="fixed",
+        node=dict(
+            label=all_labels,
+            color=node_colors,
+            pad=12,
+            thickness=18,
+            x=node_x,
+            y=node_y,
+        ),
         link=dict(source=sources, target=targets, value=vals, color=link_colors),
     ))
     fig_sankey.update_layout(
