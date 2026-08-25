@@ -211,27 +211,13 @@ with col_right:
 
     n_t = len(unique_types)
 
-    # Fixed layout: markets on far left, type bars at x=0.45 so labels fill right half
-    def _even_y(n):
-        return [(i + 0.5) / n for i in range(n)]
-
-    node_x = [0.01] * n_m + [0.45] * n_t
-    node_y = _even_y(n_m) + _even_y(n_t)
-
     fig_sankey = go.Figure(go.Sankey(
-        arrangement="fixed",
-        node=dict(
-            label=all_labels,
-            color=node_colors,
-            pad=12,
-            thickness=18,
-            x=node_x,
-            y=node_y,
-        ),
+        arrangement="snap",
+        node=dict(label=all_labels, color=node_colors, pad=15, thickness=20),
         link=dict(source=sources, target=targets, value=vals, color=link_colors),
     ))
     fig_sankey.update_layout(
-        height=CHART_HEIGHT,
+        height=500,
         margin={"l": 10, "t": 10, "b": 10, "r": 10},
         font={"size": 14},
     )
