@@ -162,11 +162,12 @@ with col_left:
         color_discrete_sequence=BRAND_COLORS,
         height=CHART_HEIGHT,
     )
-    fig_status.update_traces(textposition="inside", textfont_size=14, cliponaxis=False)
+    fig_status.update_traces(textposition="inside", textfont={"size": 14}, cliponaxis=False)
     fig_status.update_layout(
         yaxis={"categoryorder": "total ascending"},
         margin={"l": 10, "t": 10, "b": 10, "r": 10},
         legend={"orientation": "h", "yanchor": "bottom", "y": -0.3},
+        font={"size": 14},
     )
     st.plotly_chart(fig_status, use_container_width=True)
 
