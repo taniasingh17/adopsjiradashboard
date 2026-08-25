@@ -4,6 +4,7 @@ from pathlib import Path
 import requests
 import streamlit as st
 import plotly.express as px
+import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
 from config import Config, load_config
 from jira_client import fetch_issues
@@ -170,21 +171,48 @@ with col_left:
     st.plotly_chart(fig_status, use_container_width=True)
 
 with col_right:
-    st.subheader("Request Type Distribution")
-    df_type = group_by_request_type(issues)
-    df_type = df_type[df_type["request_type"] != "China - Outbound"]
-    fig_type = px.pie(
-        df_type,
-        values="count",
-        names="request_type",
-        hole=0.4,
-        labels={"request_type": "Request Type", "count": "Count"},
-        color_discrete_sequence=BRAND_COLORS,
+    st.subheader("Tickets by Market & Type")
+    df_type_raw = group_by_request_type(issues)
+    df_type_raw = df_type_raw[df_type_raw["request_type"] != "China - Outbound"]
+
+    # Parse "Market - Type" format
+    parsed = []
+    for _, row in df_type_raw.iterrows():
+        parts = str(row["request_type"]).split(" - ", 1)
+        market = parts[0].strip() if len(parts) == 2 else "Other"
+        rtype  = parts[1].strip() if len(parts) == 2 else parts[0].strip()
+        parsed.append((market, rtype, int(row["count"])))
+
+    unique_markets = list(dict.fromkeys(m for m, _, _ in parsed))
+    unique_types   = list(dict.fromkeys(t for _, t, _ in parsed))
+    all_labels = unique_markets + unique_types
+    n_m = len(unique_markets)
+    market_idx = {m: i       for i, m in enumerate(unique_markets)}
+    type_idx   = {t: n_m + i for i, t in enumerate(unique_types)}
+
+    market_colors = [BRAND_COLORS[i % len(BRAND_COLORS)] for i in range(n_m)]
+    node_colors   = market_colors + ["#4a4a4a"] * len(unique_types)
+
+    def _rgba(hex_color, alpha=0.4):
+        r, g, b = int(hex_color[1:3], 16), int(hex_color[3:5], 16), int(hex_color[5:7], 16)
+        return f"rgba({r},{g},{b},{alpha})"
+
+    sources     = [market_idx[m]                            for m, _, _ in parsed]
+    targets     = [type_idx[t]                              for _, t, _ in parsed]
+    vals        = [v                                        for _, _, v in parsed]
+    link_colors = [_rgba(market_colors[market_idx[m]])      for m, _, _ in parsed]
+
+    fig_sankey = go.Figure(go.Sankey(
+        arrangement="snap",
+        node=dict(label=all_labels, color=node_colors, pad=12, thickness=18),
+        link=dict(source=sources, target=targets, value=vals, color=link_colors),
+    ))
+    fig_sankey.update_layout(
         height=CHART_HEIGHT,
+        margin={"l": 10, "t": 10, "b": 10, "r": 10},
+        font={"size": 11},
     )
-    fig_type.update_traces(textinfo="value", textposition="inside")
-    fig_type.update_layout(margin={"l": 10, "t": 10, "b": 10, "r": 10})
-    st.plotly_chart(fig_type, use_container_width=True)
+    st.plotly_chart(fig_sankey, use_container_width=True)
 
 # --- Footer ---
 st.markdown(
