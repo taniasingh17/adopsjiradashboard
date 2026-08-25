@@ -11,7 +11,7 @@ from jira_client import fetch_issues
 from data_processor import build_jql, build_jql_range, group_by_assignee, group_by_status, group_by_request_type, compute_kpis
 
 BASE_JQL = "project = TKTS"
-BRAND_COLORS = ["#F2226E", "#F2911B", "#F26A1B", "#D92323", "#220126"]
+BRAND_COLORS = ["#F2226E", "#F2911B", "#F26A1B", "#D92323", "#9B4DB5"]
 CHART_HEIGHT = 380
 _LOGO_PATH = Path(__file__).parent / "logo.png"
 
