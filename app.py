@@ -162,7 +162,7 @@ with col_left:
         color_discrete_sequence=BRAND_COLORS,
         height=CHART_HEIGHT,
     )
-    fig_status.update_traces(textposition="inside", textfont_size=11, cliponaxis=False)
+    fig_status.update_traces(textposition="inside", textfont_size=14, cliponaxis=False)
     fig_status.update_layout(
         yaxis={"categoryorder": "total ascending"},
         margin={"l": 10, "t": 10, "b": 10, "r": 10},
@@ -185,10 +185,17 @@ with col_right:
 
     unique_markets = list(dict.fromkeys(m for m, _, _ in parsed))
     unique_types   = list(dict.fromkeys(t for _, t, _ in parsed))
-    all_labels = unique_markets + unique_types
     n_m = len(unique_markets)
     market_idx = {m: i       for i, m in enumerate(unique_markets)}
     type_idx   = {t: n_m + i for i, t in enumerate(unique_types)}
+
+    # Aggregate totals per node for count labels
+    market_totals = {m: sum(v for mm, _, v in parsed if mm == m) for m in unique_markets}
+    type_totals   = {t: sum(v for _, tt, v in parsed if tt == t) for t in unique_types}
+    all_labels = (
+        [f"{m}  ({market_totals[m]})" for m in unique_markets] +
+        [f"{t}  ({type_totals[t]})"   for t in unique_types]
+    )
 
     market_colors = [BRAND_COLORS[i % len(BRAND_COLORS)] for i in range(n_m)]
     node_colors   = market_colors + ["#4a4a4a"] * len(unique_types)
@@ -210,7 +217,7 @@ with col_right:
     fig_sankey.update_layout(
         height=CHART_HEIGHT,
         margin={"l": 10, "t": 10, "b": 10, "r": 10},
-        font={"size": 11},
+        font={"size": 14},
     )
     st.plotly_chart(fig_sankey, use_container_width=True)
 
